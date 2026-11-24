@@ -24,6 +24,7 @@ import com.bumble.appyx.navmodel.backstack.operation.push
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
+import io.element.android.appnav.bubble.BubbleSessionFlowNode
 import io.element.android.appnav.di.RoomGraphFactory
 import io.element.android.appnav.di.TimelineBindings
 import io.element.android.appnav.room.RoomNavigationTarget
@@ -100,6 +101,12 @@ class JoinedRoomLoadedFlowNode(
 
     private val sendMessageWatcher = (graph as? TimelineBindings)?.analyticsSendMessageWatcher
 
+    // When displayed in a notification bubble, the room is not the one displayed in the main screen of the application,
+    // so it must not change the navigation state used to filter notifications, nor the active room used by the main screen.
+    private val isInBubble by lazy {
+        generateSequence(parent) { it.parent }.any { it is BubbleSessionFlowNode }
+    }
+
     // This is an ugly hack to check activity recreation
     private var currentActivity: Activity? = null
 
@@ -107,8 +114,10 @@ class JoinedRoomLoadedFlowNode(
         lifecycle.subscribe(
             onCreate = {
                 Timber.v("OnCreate => ${inputs.room.roomId}")
-                appNavigationStateService.onNavigateToRoom(id, inputs.room.roomId)
-                activeRoomsHolder.addRoom(inputs.room)
+                if (!isInBubble) {
+                    appNavigationStateService.onNavigateToRoom(id, inputs.room.roomId)
+                    activeRoomsHolder.addRoom(inputs.room)
+                }
                 sendMessageWatcher?.start()
                 fetchRoomMembers()
                 trackVisitedRoom()
@@ -125,10 +134,14 @@ class JoinedRoomLoadedFlowNode(
                 // If we're just going through an activity recreation there's no need to destroy the Room object
                 // Destroying it would actually cause an issue where its methods can no longer be called
                 if (currentActivity?.isChangingConfigurations != true) {
-                    activeRoomsHolder.removeRoom(inputs.room.sessionId, inputs.room.roomId)
+                    if (!isInBubble) {
+                        activeRoomsHolder.removeRoom(inputs.room.sessionId, inputs.room.roomId)
+                    }
                     inputs.room.destroy()
                 }
-                appNavigationStateService.onLeavingRoom(id)
+                if (!isInBubble) {
+                    appNavigationStateService.onLeavingRoom(id)
+                }
             }
         )
     }

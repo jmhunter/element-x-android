@@ -19,12 +19,14 @@ import io.element.android.features.lockscreen.api.LockScreenService
 import io.element.android.features.migration.api.MigrationEntryPoint
 import io.element.android.features.rageshake.api.reporter.BugReporter
 import io.element.android.libraries.core.meta.BuildMeta
+import io.element.android.libraries.deeplink.api.DeeplinkParser
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.di.identifiers.SentrySdkDsn
 import io.element.android.libraries.featureflag.api.FeatureFlagService
 import io.element.android.libraries.matrix.api.platform.InitPlatformService
 import io.element.android.libraries.matrix.api.tracing.TracingService
 import io.element.android.libraries.preferences.api.store.AppPreferencesStore
+import io.element.android.libraries.push.impl.intent.IntentProvider
 import io.element.android.services.analytics.api.AnalyticsService
 
 @ContributesTo(AppScope::class)
@@ -44,6 +46,10 @@ interface AppBindings {
     fun migrationEntryPoint(): MigrationEntryPoint
 
     fun lockScreenEntryPoint(): LockScreenEntryPoint
+
+    fun deeplinkParser(): DeeplinkParser
+
+    fun intentProvider(): IntentProvider
 
     fun analyticsService(): AnalyticsService
 
