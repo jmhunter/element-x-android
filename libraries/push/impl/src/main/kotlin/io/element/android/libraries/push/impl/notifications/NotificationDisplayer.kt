@@ -62,6 +62,10 @@ class DefaultNotificationDisplayer(
             return false
         }
         val bubbleMetadata = NotificationCompat.BubbleMetadata.fromPlatform(notification.bubbleMetadata) ?: return false
+        if (bubbleMetadata.isNotificationSuppressed) {
+            // Already hidden, do not post it again
+            return true
+        }
         val bubbleIntent = bubbleMetadata.intent ?: return false
         val bubbleIcon = bubbleMetadata.icon ?: return false
         val suppressedBubbleMetadata = NotificationCompat.BubbleMetadata.Builder(bubbleIntent, bubbleIcon)
