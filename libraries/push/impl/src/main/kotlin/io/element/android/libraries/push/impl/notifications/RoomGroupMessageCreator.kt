@@ -18,6 +18,7 @@ import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.push.api.notifications.NotificationBitmapLoader
+import io.element.android.libraries.push.api.notifications.conversations.NotificationConversationService
 import io.element.android.libraries.push.impl.R
 import io.element.android.libraries.push.impl.notifications.factories.NotificationAccountParams
 import io.element.android.libraries.push.impl.notifications.factories.NotificationCreator
@@ -42,6 +43,7 @@ class DefaultRoomGroupMessageCreator(
     private val stringProvider: StringProvider,
     private val notificationCreator: NotificationCreator,
     private val roomSharedWithOtherAccountChecker: RoomSharedWithOtherAccountChecker,
+    private val notificationConversationService: NotificationConversationService,
 ) : RoomGroupMessageCreator {
     override suspend fun createRoomMessage(
         notificationAccountParams: NotificationAccountParams,
@@ -67,6 +69,18 @@ class DefaultRoomGroupMessageCreator(
         val smartReplyErrors = events.filter { it.isSmartReplyError() }
         val roomIsDm = !roomIsGroup
         val sessionId = notificationAccountParams.user.userId
+        val showSessionId = roomSharedWithOtherAccountChecker.isJoinedByOtherAccount(sessionId, roomId)
+        if (threadId == null && !showSessionId) {
+            // The notification is rendered as a conversation, which can also be displayed in a bubble. Both require the
+            // conversation shortcut to exist, so ensure it is created before the notification is displayed.
+            notificationConversationService.onSendMessage(
+                sessionId = sessionId,
+                roomId = roomId,
+                roomName = roomName,
+                roomIsDirect = roomIsDm,
+                roomAvatarUrl = lastKnownRoomEvent.roomAvatarPath,
+            )
+        }
         return notificationCreator.createMessagesListNotification(
             notificationAccountParams = notificationAccountParams,
             roomInfo = RoomEventGroupInfo(
@@ -78,7 +92,7 @@ class DefaultRoomGroupMessageCreator(
                 shouldBing = events.any { it.noisy },
                 customSound = events.last().soundName,
                 isUpdated = events.last().let { it.isUpdated || it.outGoingMessage },
-                showSessionId = roomSharedWithOtherAccountChecker.isJoinedByOtherAccount(sessionId, roomId),
+                showSessionId = showSessionId,
             ),
             threadId = threadId,
             largeIcon = largeBitmap,

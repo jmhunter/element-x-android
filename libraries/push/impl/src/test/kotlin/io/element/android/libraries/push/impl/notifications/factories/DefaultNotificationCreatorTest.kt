@@ -456,6 +456,52 @@ class DefaultNotificationCreatorTest : RobolectricTest() {
         assertThat(notSharedResult.conversationTitle()).isEqualTo("roomDisplayName")
     }
 
+    @Test
+    fun `test createMessagesListNotification for a room not joined by another account can be displayed in a bubble`() = runTest {
+        val sut = createNotificationCreator()
+        val result = sut.createRoomNotification(
+            events = listOf(aNotifiableMessageEvent()),
+            showSessionId = false,
+        )
+        val bubbleMetadata = NotificationCompat.BubbleMetadata.fromPlatform(result.bubbleMetadata)
+        assertThat(bubbleMetadata).isNotNull()
+        assertThat(bubbleMetadata?.intent).isNotNull()
+        assertThat(bubbleMetadata?.autoExpandBubble).isFalse()
+        assertThat(bubbleMetadata?.isNotificationSuppressed).isFalse()
+    }
+
+    @Test
+    fun `test createMessagesListNotification for a room joined by another account cannot be displayed in a bubble`() = runTest {
+        val sut = createNotificationCreator()
+        val result = sut.createRoomNotification(
+            events = listOf(aNotifiableMessageEvent()),
+            notificationAccountParams = aNotificationAccountParams(showSessionId = true),
+            showSessionId = true,
+        )
+        assertThat(result.bubbleMetadata).isNull()
+    }
+
+    @Test
+    fun `test createMessagesListNotification for a thread cannot be displayed in a bubble`() = runTest {
+        val sut = createNotificationCreator()
+        val result = sut.createMessagesListNotification(
+            notificationAccountParams = aNotificationAccountParams(),
+            roomInfo = RoomEventGroupInfo(
+                sessionId = A_SESSION_ID,
+                roomId = A_ROOM_ID,
+                roomDisplayName = "roomDisplayName",
+            ),
+            threadId = A_THREAD_ID,
+            largeIcon = null,
+            lastMessageTimestamp = 123_456L,
+            tickerText = "tickerText",
+            existingNotification = null,
+            imageLoader = FakeImageLoader(),
+            events = listOf(aNotifiableMessageEvent(threadId = A_THREAD_ID)),
+        )
+        assertThat(result.bubbleMetadata).isNull()
+    }
+
     private suspend fun NotificationCreator.createRoomNotification(
         events: List<NotifiableMessageEvent>,
         existingNotification: Notification? = null,

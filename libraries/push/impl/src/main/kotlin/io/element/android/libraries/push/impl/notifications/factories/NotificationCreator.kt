@@ -16,6 +16,7 @@ import androidx.annotation.ColorInt
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationCompat.MessagingStyle
 import androidx.core.app.Person
+import androidx.core.graphics.drawable.IconCompat
 import coil3.ImageLoader
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -204,6 +205,11 @@ class DefaultNotificationCreator(
         // Always set it, since the style may have been extracted from an existing notification
         messagingStyle.conversationTitle = createConversationTitle(roomInfo, threadId)
         val newEvents = messagingStyle.filterOutAlreadyDisplayedEvents(events)
+        val shortcutId = if (threadId == null && !roomInfo.showSessionId) {
+            createShortcutId(roomInfo.sessionId, roomInfo.roomId)
+        } else {
+            null
+        }
         messagingStyle.addMessagesFromEvents(newEvents, imageLoader)
         return builder
             .setCategory(category)
@@ -222,13 +228,10 @@ class DefaultNotificationCreator(
             // https://developer.android.com/develop/ui/views/notifications/conversations
             // The system does not render the subText of conversation notifications, so when the account
             // information has to be displayed, the notification is not rendered as a conversation.
-            .setShortcutId(
-                if (threadId == null && !roomInfo.showSessionId) {
-                    createShortcutId(roomInfo.sessionId, roomInfo.roomId)
-                } else {
-                    null
-                }
-            )
+            .setShortcutId(shortcutId)
+            // Allow the conversation to be displayed in a bubble, for API 30+. The system only shows the bubble if the user
+            // has allowed bubbles for the application or for this conversation.
+            .setBubbleMetadata(shortcutId?.let { createBubbleMetadata(roomInfo, largeIcon) })
             // Mark room/thread as read
             .addAction(markAsReadActionFactory.create(roomInfo, threadId))
             .setContentIntent(openIntent)
@@ -251,6 +254,23 @@ class DefaultNotificationCreator(
                 }
             }
             .setTicker(tickerText)
+            .build()
+    }
+
+    private fun createBubbleMetadata(
+        roomInfo: RoomEventGroupInfo,
+        largeIcon: Bitmap?,
+    ): NotificationCompat.BubbleMetadata {
+        val icon = largeIcon?.let(IconCompat::createWithAdaptiveBitmap)
+            ?: IconCompat.createWithResource(context, CommonDrawables.ic_notification)
+        return NotificationCompat.BubbleMetadata.Builder(
+            pendingIntentFactory.createBubblePendingIntent(roomInfo.sessionId, roomInfo.roomId),
+            icon,
+        )
+            .setDesiredHeight(BUBBLE_DESIRED_HEIGHT_DP)
+            // Do not hide the notification nor open the bubble automatically: the user decides
+            .setAutoExpandBubble(false)
+            .setSuppressNotification(false)
             .build()
     }
 
@@ -573,6 +593,11 @@ class DefaultNotificationCreator(
         private const val FALLBACK_COUNTER_EXTRA = "COUNTER"
     }
 }
+
+/**
+ * Desired height of the expanded bubble, in dp. The system may display it smaller.
+ */
+private const val BUBBLE_DESIRED_HEIGHT_DP = 640
 
 private fun NotificationCompat.Builder.configureWith(notificationAccountParams: NotificationAccountParams) = apply {
     setSmallIcon(CommonDrawables.ic_notification)

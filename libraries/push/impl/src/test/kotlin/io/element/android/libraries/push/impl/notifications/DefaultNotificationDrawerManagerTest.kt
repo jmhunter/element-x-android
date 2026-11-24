@@ -60,6 +60,7 @@ import io.element.android.services.appnavstate.test.FakeAppNavigationStateServic
 import io.element.android.services.appnavstate.test.aNavigationState
 import io.element.android.services.appnavstate.test.anAppNavigationState
 import io.element.android.services.toolbox.test.systemclock.A_FAKE_TIMESTAMP
+import io.element.android.tests.testutils.lambda.LambdaOneParamRecorder
 import io.element.android.tests.testutils.lambda.LambdaThreeParamsRecorder
 import io.element.android.tests.testutils.lambda.LambdaTwoParamsRecorder
 import io.element.android.tests.testutils.lambda.any
@@ -588,6 +589,61 @@ class DefaultNotificationDrawerManagerTest {
     }
 
     @Test
+    fun `clearReadRoomsNotifications keeps the notification of a read room displayed as a bubble`() = runTest {
+        val cancelNotificationResult = lambdaRecorder<String?, Int, Unit> { _, _ -> }
+        val hideNotificationIfBubbleResult = lambdaRecorder<StatusBarNotification, Boolean> { _ -> true }
+        val notification = aRoomStatusBarNotification(A_ROOM_ID, 1)
+        val sut = createClearReadRoomsManager(
+            cancelNotificationResult = cancelNotificationResult,
+            hideNotificationIfBubbleResult = hideNotificationIfBubbleResult,
+            notifications = listOf(notification),
+            roomInfo = aRoomInfo(id = A_ROOM_ID),
+        )
+        sut.clearReadRoomsNotifications(A_SESSION_ID)
+        runCurrent()
+        hideNotificationIfBubbleResult.assertions().isCalledOnce().with(value(notification))
+        cancelNotificationResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `clearMessagesForRoom keeps the notification displayed as a bubble`() = runTest {
+        val cancelNotificationResult = lambdaRecorder<String?, Int, Unit> { _, _ -> }
+        val hideNotificationIfBubbleResult = lambdaRecorder<StatusBarNotification, Boolean> { _ -> true }
+        val notification = aRoomStatusBarNotification(A_ROOM_ID, 1)
+        val sut = createDefaultNotificationDrawerManager(
+            notificationDisplayer = FakeNotificationDisplayer(
+                cancelNotificationResult = cancelNotificationResult,
+                hideNotificationIfBubbleResult = hideNotificationIfBubbleResult,
+            ),
+            activeNotificationsProvider = FakeActiveNotificationsProvider(
+                getMessageNotificationsForRoomResult = { _, _, _ -> listOf(notification) },
+                countResult = { 2 },
+            ),
+        )
+        sut.clearMessagesForRoom(A_SESSION_ID, A_ROOM_ID)
+        hideNotificationIfBubbleResult.assertions().isCalledOnce().with(value(notification))
+        cancelNotificationResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `clearMessagesForRoom cancels the notification not displayed as a bubble`() = runTest {
+        val cancelNotificationResult = lambdaRecorder<String?, Int, Unit> { _, _ -> }
+        val sut = createDefaultNotificationDrawerManager(
+            notificationDisplayer = FakeNotificationDisplayer(
+                cancelNotificationResult = cancelNotificationResult,
+                hideNotificationIfBubbleResult = lambdaRecorder { _ -> false },
+            ),
+            activeNotificationsProvider = FakeActiveNotificationsProvider(
+                getMessageNotificationsForRoomResult = { _, _, _ -> listOf(aRoomStatusBarNotification(A_ROOM_ID, 1)) },
+                countResult = { 2 },
+            ),
+        )
+        sut.clearMessagesForRoom(A_SESSION_ID, A_ROOM_ID)
+        cancelNotificationResult.assertions().isCalledOnce()
+            .with(value(A_ROOM_ID.value), value(NotificationIdProvider.getRoomMessagesNotificationId(A_SESSION_ID)))
+    }
+
+    @Test
     fun `clearReadRoomsNotifications keeps notifications of rooms with unread messages`() = testKeepsNotification(
         aRoomInfo(id = A_ROOM_ID, numUnreadMessages = 1)
     )
@@ -711,6 +767,7 @@ class DefaultNotificationDrawerManagerTest {
 
     private fun TestScope.createClearReadRoomsManager(
         cancelNotificationResult: LambdaTwoParamsRecorder<String?, Int, Unit>,
+        hideNotificationIfBubbleResult: LambdaOneParamRecorder<StatusBarNotification, Boolean> = lambdaRecorder { _ -> false },
         notifications: List<StatusBarNotification>,
         roomInfo: RoomInfo?,
         clientResult: Result<FakeMatrixClient>? = null,
@@ -721,7 +778,10 @@ class DefaultNotificationDrawerManagerTest {
             getRoomInfoLambda = { roomId -> Result.success(roomInfo?.takeIf { it.id == roomId }) }
         }
         return createDefaultNotificationDrawerManager(
-            notificationDisplayer = FakeNotificationDisplayer(cancelNotificationResult = cancelNotificationResult),
+            notificationDisplayer = FakeNotificationDisplayer(
+                cancelNotificationResult = cancelNotificationResult,
+                hideNotificationIfBubbleResult = hideNotificationIfBubbleResult,
+            ),
             activeNotificationsProvider = FakeActiveNotificationsProvider(
                 getNotificationsForSessionResult = { notifications },
                 getSummaryNotificationResult = { summaryNotification },

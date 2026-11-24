@@ -9,6 +9,7 @@
 package io.element.android.libraries.push.impl.notifications.fake
 
 import android.app.Notification
+import android.service.notification.StatusBarNotification
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.push.api.notifications.NotificationIdProvider
 import io.element.android.libraries.push.impl.notifications.NotificationDisplayer
@@ -22,6 +23,7 @@ import io.element.android.tests.testutils.lambda.value
 class FakeNotificationDisplayer(
     var showNotificationResult: LambdaThreeParamsRecorder<String?, Int, Notification, Boolean> = lambdaRecorder { _, _, _ -> true },
     var cancelNotificationResult: LambdaTwoParamsRecorder<String?, Int, Unit> = lambdaRecorder { _, _ -> },
+    var hideNotificationIfBubbleResult: LambdaOneParamRecorder<StatusBarNotification, Boolean> = lambdaRecorder { _ -> false },
     var displayDiagnosticNotificationResult: LambdaOneParamRecorder<Notification, Boolean> = lambdaRecorder { _ -> true },
     var dismissDiagnosticNotificationResult: LambdaNoParamRecorder<Unit> = lambdaRecorder { -> },
     var displayUnregistrationNotificationResult: LambdaOneParamRecorder<Notification, Boolean> = lambdaRecorder { _ -> true },
@@ -32,6 +34,10 @@ class FakeNotificationDisplayer(
 
     override fun cancelNotification(tag: String?, id: Int) {
         return cancelNotificationResult(tag, id)
+    }
+
+    override fun hideNotificationIfBubble(statusBarNotification: StatusBarNotification): Boolean {
+        return hideNotificationIfBubbleResult(statusBarNotification)
     }
 
     override fun displayDiagnosticNotification(notification: Notification): Boolean {

@@ -15,22 +15,30 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.appconfig.NotificationConfig
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.test.FakeEnterpriseService
+import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.test.A_ROOM_ID
+import io.element.android.libraries.matrix.test.A_THREAD_ID
 import io.element.android.libraries.matrix.test.A_TIMESTAMP
 import io.element.android.libraries.matrix.ui.components.aMatrixUser
 import io.element.android.libraries.matrixmedia.api.AVATAR_THUMBNAIL_SIZE_IN_PIXEL
 import io.element.android.libraries.matrixmedia.api.MediaRequestData
 import io.element.android.libraries.matrixmedia.test.FakeImageLoader
 import io.element.android.libraries.matrixmedia.test.FakeInitialsAvatarBitmapGenerator
+import io.element.android.libraries.push.api.notifications.conversations.NotificationConversationService
 import io.element.android.libraries.push.impl.notifications.factories.MARK_AS_READ_ACTION_TITLE
 import io.element.android.libraries.push.impl.notifications.factories.QUICK_REPLY_ACTION_TITLE
 import io.element.android.libraries.push.impl.notifications.factories.aNotificationAccountParams
 import io.element.android.libraries.push.impl.notifications.factories.createNotificationCreator
 import io.element.android.libraries.push.impl.notifications.fixtures.aNotifiableMessageEvent
+import io.element.android.libraries.push.test.notifications.conversations.FakeNotificationConversationService
 import io.element.android.services.toolbox.api.sdk.BuildVersionSdkIntProvider
 import io.element.android.services.toolbox.impl.strings.AndroidStringProvider
 import io.element.android.services.toolbox.test.sdk.FakeBuildVersionSdkIntProvider
+import io.element.android.tests.testutils.lambda.any
+import io.element.android.tests.testutils.lambda.lambdaRecorder
+import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.robolectric.RobolectricTest
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -105,6 +113,62 @@ class DefaultBaseRoomGroupMessageCreatorTest : RobolectricTest() {
         )
         assertThat(result.extras.getCharSequence(NotificationCompat.EXTRA_SUB_TEXT)).isNull()
         assertThat(NotificationCompat.getShortcutId(result)).isNotNull()
+    }
+
+    @Test
+    fun `test createRoomMessage for a room not joined by another account creates the conversation shortcut`() = runTest {
+        val matrixUser = aMatrixUser()
+        val onSendMessageResult = lambdaRecorder<SessionId, RoomId, String?, Boolean, String?, Unit> { _, _, _, _, _ -> }
+        val sut = createRoomGroupMessageCreator(
+            notificationConversationService = FakeNotificationConversationService(onSendMessageResult = onSendMessageResult),
+        )
+        sut.createRoomMessage(
+            notificationAccountParams = aNotificationAccountParams(user = matrixUser),
+            events = listOf(aNotifiableMessageEvent(timestamp = A_TIMESTAMP)),
+            roomId = A_ROOM_ID,
+            imageLoader = FakeImageLoader(),
+            existingNotification = null,
+            threadId = null,
+        )
+        onSendMessageResult.assertions().isCalledOnce()
+            .with(value(matrixUser.userId), value(A_ROOM_ID), any(), value(false), any())
+    }
+
+    @Test
+    fun `test createRoomMessage for a thread does not create the conversation shortcut`() = runTest {
+        val onSendMessageResult = lambdaRecorder<SessionId, RoomId, String?, Boolean, String?, Unit> { _, _, _, _, _ -> }
+        val sut = createRoomGroupMessageCreator(
+            notificationConversationService = FakeNotificationConversationService(onSendMessageResult = onSendMessageResult),
+        )
+        sut.createRoomMessage(
+            notificationAccountParams = aNotificationAccountParams(),
+            events = listOf(aNotifiableMessageEvent(timestamp = A_TIMESTAMP, threadId = A_THREAD_ID)),
+            roomId = A_ROOM_ID,
+            imageLoader = FakeImageLoader(),
+            existingNotification = null,
+            threadId = A_THREAD_ID,
+        )
+        onSendMessageResult.assertions().isNeverCalled()
+    }
+
+    @Test
+    fun `test createRoomMessage for a room joined by another account does not create the conversation shortcut`() = runTest {
+        val onSendMessageResult = lambdaRecorder<SessionId, RoomId, String?, Boolean, String?, Unit> { _, _, _, _, _ -> }
+        val sut = createRoomGroupMessageCreator(
+            roomSharedWithOtherAccountChecker = FakeRoomSharedWithOtherAccountChecker(
+                isJoinedByOtherAccountResult = { _, _ -> true },
+            ),
+            notificationConversationService = FakeNotificationConversationService(onSendMessageResult = onSendMessageResult),
+        )
+        sut.createRoomMessage(
+            notificationAccountParams = aNotificationAccountParams(showSessionId = true),
+            events = listOf(aNotifiableMessageEvent(timestamp = A_TIMESTAMP)),
+            roomId = A_ROOM_ID,
+            imageLoader = FakeImageLoader(),
+            existingNotification = null,
+            threadId = null,
+        )
+        onSendMessageResult.assertions().isNeverCalled()
     }
 
     @Test
@@ -277,6 +341,7 @@ fun createRoomGroupMessageCreator(
     sdkIntProvider: BuildVersionSdkIntProvider = FakeBuildVersionSdkIntProvider(Build.VERSION_CODES.O),
     enterpriseService: EnterpriseService = FakeEnterpriseService(),
     roomSharedWithOtherAccountChecker: RoomSharedWithOtherAccountChecker = FakeRoomSharedWithOtherAccountChecker(),
+    notificationConversationService: NotificationConversationService = FakeNotificationConversationService(),
 ): RoomGroupMessageCreator {
     val context = RuntimeEnvironment.getApplication() as Context
     val bitmapLoader = DefaultNotificationBitmapLoader(
@@ -292,5 +357,6 @@ fun createRoomGroupMessageCreator(
         bitmapLoader = bitmapLoader,
         stringProvider = AndroidStringProvider(context.resources),
         roomSharedWithOtherAccountChecker = roomSharedWithOtherAccountChecker,
+        notificationConversationService = notificationConversationService,
     )
 }

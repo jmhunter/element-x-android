@@ -149,7 +149,11 @@ class DefaultNotificationDrawerManager(
      * Can also be called when a notification for this room is dismissed by the user.
      */
     override fun clearMessagesForRoom(sessionId: SessionId, roomId: RoomId) {
-        notificationDisplayer.cancelNotification(roomId.value, NotificationIdProvider.getRoomMessagesNotificationId(sessionId))
+        val isHiddenBubble = activeNotificationsProvider.getMessageNotificationsForRoom(sessionId, roomId, threadId = null)
+            .any { notificationDisplayer.hideNotificationIfBubble(it) }
+        if (!isHiddenBubble) {
+            notificationDisplayer.cancelNotification(roomId.value, NotificationIdProvider.getRoomMessagesNotificationId(sessionId))
+        }
         clearSummaryNotificationIfNeeded(sessionId)
     }
 
@@ -205,7 +209,9 @@ class DefaultNotificationDrawerManager(
                     return@forEach
                 }
 
-                notificationDisplayer.cancelNotification(notification.tag, notification.id)
+                if (!notificationDisplayer.hideNotificationIfBubble(notification)) {
+                    notificationDisplayer.cancelNotification(notification.tag, notification.id)
+                }
             }
 
             clearSummaryNotificationIfNeeded(sessionId)

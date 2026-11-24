@@ -47,13 +47,20 @@ import timber.log.Timber
 
 private val loggerTag = LoggerTag("MainActivity")
 
-class MainActivity : NodeActivity() {
+open class MainActivity : NodeActivity() {
     private lateinit var mainNode: MainNode
     private lateinit var appBindings: AppBindings
 
+    /**
+     * Whether the Activity is displayed in a notification bubble, see [BubbleActivity].
+     */
+    protected open val isBubble: Boolean = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        Timber.tag(loggerTag.value).d("onCreate, with savedInstanceState: ${savedInstanceState != null}")
-        installSplashScreen()
+        Timber.tag(loggerTag.value).d("onCreate, with savedInstanceState: ${savedInstanceState != null}, isBubble: $isBubble")
+        if (!isBubble) {
+            installSplashScreen()
+        }
         super.onCreate(savedInstanceState)
         appBindings = bindings()
         setupLockManagement(appBindings.lockScreenService(), appBindings.lockScreenEntryPoint())
@@ -62,10 +69,12 @@ class MainActivity : NodeActivity() {
             MainContent(appBindings)
         }
 
-        val activity = this
-        appBindings.appStartupHooks().forEach {
-            lifecycleScope.launch {
-                it.onAppStartup(activity)
+        if (!isBubble) {
+            val activity = this
+            appBindings.appStartupHooks().forEach {
+                lifecycleScope.launch {
+                    it.onAppStartup(activity)
+                }
             }
         }
     }

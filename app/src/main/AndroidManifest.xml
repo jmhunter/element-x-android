@@ -126,6 +126,19 @@
         </activity>
 
         <!--
+          Activity displayed in a notification bubble. It must be embeddable, resizeable, and always launched in a new document
+          so that each bubble gets its own instance. See https://developer.android.com/develop/ui/views/notifications/bubbles
+        -->
+        <activity
+            android:name=".BubbleActivity"
+            android:allowEmbedded="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode"
+            android:documentLaunchMode="always"
+            android:exported="false"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!--
           The intent-filter element does not support the android:enabled attribute, so the
           Element links are declared in an activity-alias of MainActivity, which can be disabled.
           See BuildTimeConfig.ELEMENT_LINKS_ENABLED and BuildTimeConfig.ELEMENT_MOBILE_LINK_PATH.

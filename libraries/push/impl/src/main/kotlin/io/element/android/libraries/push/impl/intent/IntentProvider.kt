@@ -26,4 +26,13 @@ interface IntentProvider {
         eventId: EventId?,
         extras: Bundle? = null,
     ): Intent
+
+    /**
+     * Provide an intent to display a room in a bubble. The activity it targets must be able to be embedded in a bubble.
+     * See https://developer.android.com/develop/ui/views/notifications/bubbles
+     */
+    fun getBubbleIntent(
+        sessionId: SessionId,
+        roomId: RoomId,
+    ): Intent
 }

@@ -11,6 +11,7 @@ package io.element.android.libraries.push.impl.notifications.factories
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import dev.zacsweers.metro.Inject
 import io.element.android.libraries.androidutils.uri.createIgnoredUri
@@ -23,6 +24,7 @@ import io.element.android.libraries.push.impl.intent.IntentProvider
 import io.element.android.libraries.push.impl.notifications.NotificationActionIds
 import io.element.android.libraries.push.impl.notifications.NotificationBroadcastReceiver
 import io.element.android.libraries.push.impl.notifications.TestNotificationReceiver
+import io.element.android.libraries.push.impl.notifications.shortcut.createShortcutId
 import io.element.android.services.toolbox.api.systemclock.SystemClock
 
 @Inject
@@ -51,6 +53,25 @@ class PendingIntentFactory(
             clock.epochMillis().toInt(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /**
+     * Create the [PendingIntent] used to display a room in a bubble.
+     * The system requires it to be mutable, and the request code is stable for a given room so that updating a notification
+     * does not create a new bubble.
+     */
+    fun createBubblePendingIntent(sessionId: SessionId, roomId: RoomId): PendingIntent {
+        val intent = intentProvider.getBubbleIntent(sessionId = sessionId, roomId = roomId)
+        return PendingIntent.getActivity(
+            context,
+            createShortcutId(sessionId, roomId).hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_MUTABLE
+            } else {
+                0
+            }
         )
     }
 

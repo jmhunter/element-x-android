@@ -25,6 +25,7 @@ import io.element.android.libraries.matrix.test.A_THREAD_ID
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.robolectric.RobolectricTest
+import io.element.android.x.BubbleActivity
 import io.element.android.x.MainActivity
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
@@ -49,6 +50,27 @@ class DefaultIntentProviderTest : RobolectricTest() {
             value(A_ROOM_ID),
             value(A_THREAD_ID),
             value(AN_EVENT_ID),
+        )
+    }
+
+    @Test
+    fun `test getBubbleIntent targets the bubble activity with a room deep link`() {
+        val deepLinkCreator = lambdaRecorder<SessionId, RoomId?, ThreadId?, EventId?, String> { _, _, _, _ -> "deepLinkCreatorResult" }
+        val sut = createDefaultIntentProvider(
+            deepLinkCreator = { sessionId, roomId, threadId, eventId -> deepLinkCreator.invoke(sessionId, roomId, threadId, eventId) },
+        )
+        val result = sut.getBubbleIntent(
+            sessionId = A_SESSION_ID,
+            roomId = A_ROOM_ID,
+        )
+        assertThat(result.action).isEqualTo(Intent.ACTION_VIEW)
+        assertThat(result.component?.className).isEqualTo(BubbleActivity::class.java.name)
+        assertThat(result.data.toString()).isEqualTo("deepLinkCreatorResult")
+        deepLinkCreator.assertions().isCalledOnce().with(
+            value(A_SESSION_ID),
+            value(A_ROOM_ID),
+            value(null),
+            value(null),
         )
     }
 

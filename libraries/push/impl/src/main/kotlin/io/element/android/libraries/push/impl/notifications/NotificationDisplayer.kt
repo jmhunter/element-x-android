@@ -12,7 +12,10 @@ import android.Manifest
 import android.app.Notification
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.service.notification.StatusBarNotification
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -22,6 +25,13 @@ import timber.log.Timber
 interface NotificationDisplayer {
     fun showNotification(tag: String?, id: Int, notification: Notification): Boolean
     fun cancelNotification(tag: String?, id: Int)
+
+    /**
+     * If the active [statusBarNotification] is displayed as a bubble, hide it from the notification shade but keep the bubble.
+     * Cancelling the notification would also remove the bubble, which is not expected when the user reads the room in it.
+     * @return true if the notification was displayed as a bubble and has been hidden, false if the caller should cancel it.
+     */
+    fun hideNotificationIfBubble(statusBarNotification: StatusBarNotification): Boolean
     fun displayDiagnosticNotification(notification: Notification): Boolean
     fun dismissDiagnosticNotification()
     fun displayUnregistrationNotification(notification: Notification): Boolean
@@ -44,6 +54,26 @@ class DefaultNotificationDisplayer(
 
     override fun cancelNotification(tag: String?, id: Int) {
         notificationManager.cancel(tag, id)
+    }
+
+    override fun hideNotificationIfBubble(statusBarNotification: StatusBarNotification): Boolean {
+        val notification = statusBarNotification.notification
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || notification.flags and Notification.FLAG_BUBBLE == 0) {
+            return false
+        }
+        val bubbleMetadata = NotificationCompat.BubbleMetadata.fromPlatform(notification.bubbleMetadata) ?: return false
+        val bubbleIntent = bubbleMetadata.intent ?: return false
+        val bubbleIcon = bubbleMetadata.icon ?: return false
+        val suppressedBubbleMetadata = NotificationCompat.BubbleMetadata.Builder(bubbleIntent, bubbleIcon)
+            .setDesiredHeight(bubbleMetadata.desiredHeight)
+            .setAutoExpandBubble(false)
+            .setSuppressNotification(true)
+            .build()
+        val updatedNotification = NotificationCompat.Builder(context, notification)
+            .setBubbleMetadata(suppressedBubbleMetadata)
+            .setOnlyAlertOnce(true)
+            .build()
+        return showNotification(statusBarNotification.tag, statusBarNotification.id, updatedNotification)
     }
 
     override fun displayDiagnosticNotification(notification: Notification): Boolean {
