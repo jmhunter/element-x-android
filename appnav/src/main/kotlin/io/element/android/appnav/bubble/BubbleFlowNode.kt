@@ -31,8 +31,10 @@ import io.element.android.libraries.architecture.inputs
 import io.element.android.libraries.di.DependencyInjectionGraphOwner
 import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.matrix.api.MatrixClientProvider
+import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
+import io.element.android.libraries.matrix.api.core.ThreadId
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
@@ -65,9 +67,14 @@ class BubbleFlowNode(
         fun onDone()
 
         /**
-         * Open the main screen of the application, on the given room if any.
+         * Open the main screen of the application, on the given room if any, focused on the given event or thread if any.
          */
-        fun openInApp(sessionId: SessionId, roomId: RoomId?)
+        fun openInApp(sessionId: SessionId, roomId: RoomId?, eventId: EventId? = null, threadId: ThreadId? = null)
+
+        /**
+         * Open a Matrix permalink in the main screen of the application.
+         */
+        fun openPermalinkInApp(permalink: String)
     }
 
     data class Inputs(

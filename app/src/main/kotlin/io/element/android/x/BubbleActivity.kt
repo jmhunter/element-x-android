@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -36,8 +37,10 @@ import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.deeplink.api.DeeplinkData
 import io.element.android.libraries.designsystem.theme.ElementThemeApp
 import io.element.android.libraries.designsystem.utils.snackbar.LocalSnackbarDispatcher
+import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
+import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.services.analytics.compose.LocalAnalyticsService
 import io.element.android.x.di.AppBindings
 import io.element.android.x.intent.SafeUriHandler
@@ -68,11 +71,18 @@ class BubbleActivity : NodeActivity() {
                 finish()
             }
 
-            override fun openInApp(sessionId: SessionId, roomId: RoomId?) {
-                val intent = appBindings.intentProvider().getViewRoomIntent(sessionId = sessionId, roomId = roomId, threadId = null, eventId = null)
-                    // The bubble has its own task, so the main screen must be started in the task of the application
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
+            override fun openInApp(sessionId: SessionId, roomId: RoomId?, eventId: EventId?, threadId: ThreadId?) {
+                openMainScreen(
+                    appBindings.intentProvider().getViewRoomIntent(sessionId = sessionId, roomId = roomId, threadId = threadId, eventId = eventId)
+                )
+            }
+
+            override fun openPermalinkInApp(permalink: String) {
+                openMainScreen(
+                    Intent(this@BubbleActivity, MainActivity::class.java)
+                        .setAction(Intent.ACTION_VIEW)
+                        .setData(permalink.toUri())
+                )
             }
         }
         setContent {
@@ -106,6 +116,11 @@ class BubbleActivity : NodeActivity() {
                 }
             }
         }
+    }
+
+    private fun openMainScreen(intent: Intent) {
+        // The bubble has its own task, so the main screen must be started in the task of the application
+        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun setupLockManagement(appBindings: AppBindings) {
